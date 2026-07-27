@@ -1,0 +1,803 @@
+[
+  {
+    "name": "users",
+    "type": "auth",
+    "system": false,
+    "schema": [
+      {
+        "name": "mobile",
+        "type": "text",
+        "required": true,
+        "options": {
+          "min": 10,
+          "max": 10,
+          "pattern": "^[0-9]{10}$"
+        }
+      },
+      {
+        "name": "role",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["ADMIN", "FACULTY", "STUDENT"]
+        }
+      },
+      {
+        "name": "className",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "fatherName",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "rollNumber",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "dob",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "approvalStatus",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["APPROVED", "PENDING", "REJECTED"]
+        }
+      },
+      {
+        "name": "remarks",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "options": {
+      "allowEmailAuth": true,
+      "allowOAuth2Auth": true,
+      "allowUsernameAuth": true,
+      "exceptEmailDomains": null,
+      "manageRule": null,
+      "minPasswordLength": 6,
+      "onlyEmailDomains": null,
+      "requireEmail": true
+    }
+  },
+  {
+    "name": "students",
+    "type": "auth",
+    "system": false,
+    "schema": [
+      {
+        "name": "mobile",
+        "type": "text",
+        "required": true,
+        "options": {
+          "min": 10,
+          "max": 10,
+          "pattern": "^[0-9]{10}$"
+        }
+      },
+      {
+        "name": "role",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["STUDENT"]
+        }
+      },
+      {
+        "name": "className",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "fatherName",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "rollNumber",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "dob",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "approvalStatus",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["APPROVED", "PENDING", "REJECTED"]
+        }
+      },
+      {
+        "name": "remarks",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "options": {
+      "allowEmailAuth": true,
+      "allowOAuth2Auth": true,
+      "allowUsernameAuth": true,
+      "exceptEmailDomains": null,
+      "manageRule": null,
+      "minPasswordLength": 6,
+      "onlyEmailDomains": null,
+      "requireEmail": true
+    },
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": ""
+  },
+  {
+    "name": "teachers_auth",
+    "type": "auth",
+    "system": false,
+    "schema": [
+      {
+        "name": "mobile",
+        "type": "text",
+        "required": true,
+        "options": {
+          "min": 10,
+          "max": 10,
+          "pattern": "^[0-9]{10}$"
+        }
+      },
+      {
+        "name": "role",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["ADMIN", "FACULTY"]
+        }
+      }
+    ],
+    "options": {
+      "allowEmailAuth": true,
+      "allowOAuth2Auth": true,
+      "allowUsernameAuth": true,
+      "exceptEmailDomains": null,
+      "manageRule": null,
+      "minPasswordLength": 6,
+      "onlyEmailDomains": null,
+      "requireEmail": true
+    },
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": ""
+  },
+  {
+    "name": "notices",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "category",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["GENERAL", "ACADEMICS", "EXAMS", "ADMISSIONS"]
+        }
+      },
+      {
+        "name": "content",
+        "type": "editor",
+        "required": true
+      },
+      {
+        "name": "pdfUrl",
+        "type": "file",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 5242880,
+          "mimeTypes": ["application/pdf"]
+        }
+      },
+      {
+        "name": "pinned",
+        "type": "bool",
+        "required": false
+      },
+      {
+        "name": "date",
+        "type": "date",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "homeworks",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "className",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "subject",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "instruction",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "fileUrl",
+        "type": "file",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 10485760
+        }
+      },
+      {
+        "name": "facultyId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "facultyName",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "deadline",
+        "type": "date",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "assignments",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "className",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "subject",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "instruction",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "fileUrl",
+        "type": "file",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 10485760
+        }
+      },
+      {
+        "name": "facultyId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "facultyName",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "deadline",
+        "type": "date",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "study_materials",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "className",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "subject",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "fileUrl",
+        "type": "file",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 20971520
+        }
+      },
+      {
+        "name": "facultyId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "facultyName",
+        "type": "text",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "results",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "studentId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "studentName",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "className",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "rollNumber",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "examType",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "subjectMarks",
+        "type": "json",
+        "required": true
+      },
+      {
+        "name": "totalMarks",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "percentage",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["PASS", "FAIL"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "applications",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "type",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["ADMISSION", "LIBRARY_CARD", "LEAVE", "TC", "NOC"]
+        }
+      },
+      {
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["PENDING", "APPROVED", "REJECTED"]
+        }
+      },
+      {
+        "name": "studentId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "studentName",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "data",
+        "type": "json",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "contact_requests",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "phone",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "message",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["NEW", "RESOLVED"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "alumni_profiles",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "batchYear",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "mobile",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "profession",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "achievements",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["PENDING", "APPROVED", "REJECTED"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "feedbacks",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "role",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["PARENT", "STUDENT", "VISITOR", "ALUMNI"]
+        }
+      },
+      {
+        "name": "content",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "rating",
+        "type": "number",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "complaints",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "studentId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "studentName",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "response",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["PENDING", "RESOLVED"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "events",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "name": "category",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["EXAM", "HOLIDAY", "SPORTS", "EVENT"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "teachers",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "designation",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "qualification",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "subjects",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "imageUrl",
+        "type": "file",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 5242880,
+          "mimeTypes": ["image/jpeg", "image/png", "image/webp"]
+        }
+      },
+      {
+        "name": "phone",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "joinDate",
+        "type": "text",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "smc_members",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "designation",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "photoUrl",
+        "type": "file",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 5242880,
+          "mimeTypes": ["image/jpeg", "image/png", "image/webp"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "managing_committee_members",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "designation",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "photoUrl",
+        "type": "file",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 5242880,
+          "mimeTypes": ["image/jpeg", "image/png", "image/webp"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "web_settings",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "key",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "value",
+        "type": "text",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "newsletter_subscribers",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "name": "email",
+        "type": "text",
+        "required": true
+      }
+    ]
+  }
+]
