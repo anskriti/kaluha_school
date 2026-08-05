@@ -13,7 +13,11 @@ export interface User {
   rollNumber?: string;
   dob?: string;
   approvalStatus: 'APPROVED' | 'PENDING' | 'REJECTED';
+  approval_status?: 'Pending' | 'Approved' | 'Rejected';
   remarks?: string;
+  phone?: string;
+  directory_record?: string;
+  user_role?: string;
   created: string;
   updated: string;
 }

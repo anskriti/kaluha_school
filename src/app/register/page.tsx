@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -21,7 +21,9 @@ const registerSchema = zod.object({
   mobile: zod.string().regex(/^[0-9]{10}$/, "Mobile number must be exactly 10 digits"),
   password: zod.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: zod.string().min(8, "Confirm password must be at least 8 characters"),
-  role: zod.enum(["STUDENT", "FACULTY"])
+  role: zod.enum(["STUDENT", "FACULTY"]),
+  selectedTeacherId: zod.string().optional().or(zod.literal("")),
+  employeeId: zod.string().optional().or(zod.literal(""))
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"]
@@ -48,6 +50,14 @@ const registerSchema = zod.object({
         path: ["dob"]
       });
     }
+  } else if (data.role === "FACULTY") {
+    if (!data.selectedTeacherId && !data.employeeId) {
+      ctx.addIssue({
+        code: zod.ZodIssueCode.custom,
+        message: "Please select your name or enter your Employee ID",
+        path: ["selectedTeacherId"]
+      });
+    }
   }
 });
 
@@ -61,13 +71,40 @@ export default function RegisterPage() {
   const [registeredUsername, setRegisteredUsername] = useState("");
   const [receivedOtp, setReceivedOtp] = useState("");
   const [enteredOtp, setEnteredOtp] = useState("");
+  const [officialTeachers, setOfficialTeachers] = useState<any[]>([]);
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: { role: "STUDENT" }
   });
 
   const role = watch("role", "STUDENT");
+  const selectedTeacherId = watch("selectedTeacherId");
+
+  // Fetch official teachers list for selection dropdown
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  useEffect(() => {
+    setLoadingTeachers(true);
+    fetch("/api/teachers")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) {
+          setOfficialTeachers(data.data);
+        }
+      })
+      .catch((err) => console.error("Error loading teachers:", err))
+      .finally(() => setLoadingTeachers(false));
+  }, []);
+
+  // Auto-fill full name when a teacher selects their profile
+  useEffect(() => {
+    if (role === "FACULTY" && selectedTeacherId && selectedTeacherId !== "") {
+      const match = officialTeachers.find((t) => t.id === selectedTeacherId);
+      if (match) {
+        setValue("name", match.name);
+      }
+    }
+  }, [role, selectedTeacherId, officialTeachers, setValue]);
 
   const onRegisterSubmit = async (data: RegisterForm) => {
     setLoading(true);
@@ -86,7 +123,9 @@ export default function RegisterPage() {
           email: data.email,
           mobile: data.mobile,
           password: data.password,
-          role: data.role
+          role: data.role,
+          selectedTeacherId: data.selectedTeacherId,
+          employeeId: data.employeeId
         })
       });
       const result = await res.json();
@@ -189,6 +228,44 @@ export default function RegisterPage() {
                   </select>
                 </div>
 
+                {role === "FACULTY" && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col gap-4"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Name selection from dropdown */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-600">Select Your Official Name</label>
+                        <select
+                          {...register("selectedTeacherId")}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-school-blue"
+                        >
+                          <option value="">-- Choose Name --</option>
+                          {officialTeachers.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({t.designation})
+                            </option>
+                          ))}
+                        </select>
+                        {errors.selectedTeacherId && <p className="text-red-500 text-[10px] mt-0.5">{errors.selectedTeacherId.message}</p>}
+                      </div>
+
+                      {/* Employee ID */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-600">Or Enter Employee ID</label>
+                        <input
+                          type="text"
+                          {...register("employeeId")}
+                          placeholder="E.g. EMP001"
+                          className="w-full px-4 py-2.5 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-school-blue"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Full Name */}
                   <div className="flex flex-col gap-1.5">
@@ -224,9 +301,9 @@ export default function RegisterPage() {
                 {/* CONDITIONAL STUDENT REGISTRATION INPUTS */}
                 {role === "STUDENT" && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="flex flex-col gap-4 overflow-hidden"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col gap-4"
                   >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Father's Name */}

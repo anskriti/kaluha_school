@@ -83,7 +83,14 @@ export default function StudentDashboard() {
 
       if (resHomework.success) setHomeworks(resHomework.data || []);
       if (resAssign.success) setAssignments(resAssign.data || []);
-      if (resMaterial.success) setMaterials(resMaterial.data || []);
+      if (resMaterial.success) {
+        const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL || "http://127.0.0.1:8090";
+        const formatted = (resMaterial.data || []).map((r: any) => ({
+          ...r,
+          fileUrl: r.fileUrl ? `${pbUrl}/api/files/study_materials/${r.id}/${r.fileUrl}` : ""
+        }));
+        setMaterials(formatted);
+      }
       if (resVideo.success) setVideos(resVideo.data || []);
       
       // Filter results to only this student's published results

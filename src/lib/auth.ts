@@ -37,10 +37,11 @@ export const authOptions: NextAuthOptions = {
 
         // Student Approval Status Gate
         if (user.role === "STUDENT") {
-          if (user.approvalStatus === "PENDING") {
+          const status = user.approvalStatus;
+          if (status === "Pending" || status === "PENDING") {
             throw new Error("Your registration has been submitted successfully and is awaiting approval from the school administrator.");
           }
-          if (user.approvalStatus === "REJECTED") {
+          if (status === "Rejected" || status === "REJECTED") {
             throw new Error(`Your registration request was rejected by the administrator. Remarks: ${user.remarks || "No remarks provided."}`);
           }
         }

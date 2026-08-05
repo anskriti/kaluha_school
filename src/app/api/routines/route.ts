@@ -67,14 +67,22 @@ export async function POST(req: NextRequest) {
     formData.set("facultyId", pbServer.authStore.model.id);
     formData.set("facultyName", pbServer.authStore.model.name || "Faculty Member");
 
-    // Remove id from formData so pb doesn't try to create a field named 'id'
-    formData.delete("id");
+    // Authenticate as superuser to save/update routines in PocketBase
+    const pbAdmin = getPocketBaseServer();
+    await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
 
     let record;
     if (id) {
-      record = await pbServer.collection("routines").update(id, formData);
+      formData.delete("id");
+      record = await pbAdmin.collection("routines").update(id, formData);
     } else {
-      record = await pbServer.collection("routines").create(formData);
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      let randId = '';
+      for (let i = 0; i < 15; i++) {
+        randId += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      formData.set("id", randId);
+      record = await pbAdmin.collection("routines").create(formData);
     }
 
     return NextResponse.json({ success: true, data: record });
@@ -100,7 +108,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing routine id" }, { status: 400 });
     }
 
-    await pbServer.collection("routines").delete(id);
+    // Authenticate as superuser to delete routines in PocketBase
+    const pbAdmin = getPocketBaseServer();
+    await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+    await pbAdmin.collection("routines").delete(id);
 
     return NextResponse.json({ success: true, message: "Routine deleted successfully" });
   } catch (error: any) {

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     const userEmail = pbServer.authStore.model.email;
     const userRole = pbServer.authStore.model.role;
-    const collectionName = userRole === "FACULTY" ? "teachers_auth" : "students";
+    const collectionName = userRole === "FACULTY" ? "teacher_auth" : "students";
     const userId = pbServer.authStore.model.id;
 
     // 1. Verify old password by attempting a fresh authenticate

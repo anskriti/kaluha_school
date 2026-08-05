@@ -47,7 +47,7 @@ export default function AdminDashboard() {
 
   // Forms
   const [noticeTitle, setNoticeTitle] = useState("");
-  const [noticeCat, setNoticeCat] = useState("GENERAL");
+  const [noticeCat, setNoticeCat] = useState("General Notice");
   const [noticeContent, setNoticeContent] = useState("");
   const [noticePinned, setNoticePinned] = useState(false);
 
@@ -723,11 +723,15 @@ export default function AdminDashboard() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-slate-600">Category</label>
+                        <label className="text-slate-600">Notice Type</label>
                         <select value={noticeCat} onChange={(e) => setNoticeCat(e.target.value)} className="bg-white dark:bg-slate-950 border px-3 py-2.5 rounded-xl">
-                          <option value="GENERAL">General</option>
-                          <option value="ACADEMICS">Academics</option>
-                          <option value="EXAMS">Exams</option>
+                          <option value="General Notice">General Notice</option>
+                          <option value="Examination Notice">Examination Notice</option>
+                          <option value="Class Routine">Class Routine</option>
+                          <option value="Holiday Notice">Holiday Notice</option>
+                          <option value="Admission Notice">Admission Notice</option>
+                          <option value="Result Notice">Result Notice</option>
+                          <option value="Circular">Circular</option>
                         </select>
                       </div>
                       <div className="flex flex-col gap-1.5">

@@ -5,9 +5,9 @@ import { generateOTP, sendSimulatedSMS } from "@/lib/sms";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, username, email, mobile, password, role, className, fatherName, rollNumber, dob } = body;
+    const { name, username, email, mobile, password, role, className, fatherName, rollNumber, dob, employeeId, selectedTeacherId } = body;
 
-    if (!name || !username || !email || !mobile || !password) {
+    if (!username || !email || !mobile || !password) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
@@ -16,14 +16,45 @@ export async function POST(req: NextRequest) {
     // Authenticate as superuser to allow lookup and creation across auth collections
     await pbServer.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
 
-    // Check if user already exists in either students or teachers_auth collections
+    let targetTeacher = null;
+    if (role === "FACULTY") {
+      // 1. Verify official staff membership
+      if (selectedTeacherId) {
+        try {
+          targetTeacher = await pbServer.collection("teacher_directory").getOne(selectedTeacherId);
+        } catch (_) {}
+      }
+
+      if (!targetTeacher && employeeId) {
+        try {
+          targetTeacher = await pbServer.collection("teacher_directory").getFirstListItem(`employee_id = "${employeeId}"`);
+        } catch (_) {}
+      }
+
+      if (!targetTeacher) {
+        return NextResponse.json({ success: false, error: "You are not an authorized staff member." }, { status: 400 });
+      }
+
+      // 2. Verify teacher doesn't already have an account
+      let existingTeacherAuth = null;
+      try {
+        existingTeacherAuth = await pbServer.collection("teacher_auth").getFirstListItem(`directory_record = "${targetTeacher.id}" || email = "${email}"`);
+      } catch (_) {}
+
+      if (existingTeacherAuth) {
+        return NextResponse.json({ success: false, error: "Account already exists." }, { status: 400 });
+      }
+    }
+
+    // Check if user already exists in either students or teacher_auth collections
     const filterString = `username = "${username}" || email = "${email}" || mobile = "${mobile}"`;
+    const teacherFilterString = `username = "${username}" || email = "${email}" || phone = "${mobile}"`;
     let existingUser = null;
     try {
       existingUser = await pbServer.collection("students").getFirstListItem(filterString);
     } catch {
       try {
-        existingUser = await pbServer.collection("teachers_auth").getFirstListItem(filterString);
+        existingUser = await pbServer.collection("teacher_auth").getFirstListItem(teacherFilterString);
       } catch {
         // not found is fine
       }
@@ -32,12 +63,11 @@ export async function POST(req: NextRequest) {
     if (existingUser) {
       return NextResponse.json({ 
         success: false, 
-        error: "Username, Email, or Mobile number already registered" 
+        error: "Account already exists." 
       }, { status: 400 });
     }
 
-    const userApprovalStatus = role === "STUDENT" ? "PENDING" : "APPROVED";
-    const targetCollection = role === "STUDENT" ? "students" : "teachers_auth";
+    const targetCollection = role === "STUDENT" ? "students" : "teacher_auth";
 
     // Create payload depending on target collection
     const payload: Record<string, any> = {
@@ -46,20 +76,23 @@ export async function POST(req: NextRequest) {
       emailVisibility: true,
       password,
       passwordConfirm: password,
-      name,
-      mobile,
-      role: role || "STUDENT",
+      name: role === "STUDENT" ? name : (targetTeacher ? targetTeacher.name : ""),
       verified: false, // Will verify via OTP in simulation
     };
 
     if (role === "STUDENT") {
+      payload.mobile = mobile;
+      payload.role = "STUDENT";
       payload.className = className || "";
       payload.fatherName = fatherName || "";
       payload.rollNumber = rollNumber || "";
       payload.dob = dob || "";
-      payload.approvalStatus = userApprovalStatus;
+      payload.approval_status = "Pending";
     } else {
-      payload.approvalStatus = userApprovalStatus;
+      payload.phone = mobile;
+      payload.role = "FACULTY";
+      payload.approval_status = "Pending";
+      payload.directory_record = targetTeacher?.id || "";
     }
 
     // Create the unverified user in the target collection in PocketBase
@@ -67,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     // Generate a random 6-digit OTP and send simulated SMS
     const otp = generateOTP(user.username);
-    sendSimulatedSMS(user.mobile, `Your Kaluha Jagadishpur High School Portal verification OTP is ${otp}. Valid for 5 minutes.`);
+    sendSimulatedSMS(role === "STUDENT" ? user.mobile : user.phone, `Your Kaluha Jagadishpur High School Portal verification OTP is ${otp}. Valid for 5 minutes.`);
 
     return NextResponse.json({ 
       success: true, 
@@ -76,11 +109,15 @@ export async function POST(req: NextRequest) {
       otp: otp // Return the OTP to let client notify
     });
   } catch (error: any) {
-    let errorMessage = error.message;
-    if (error.data && typeof error.data === "object" && Object.keys(error.data).length > 0) {
-      errorMessage = Object.entries(error.data)
-        .map(([key, val]: any) => `${key}: ${val.message || JSON.stringify(val)}`)
-        .join(", ");
+    let errorMessage = error.message || "An unexpected error occurred.";
+    if (error.data && typeof error.data === "object") {
+      const dataErrors = error.data.data;
+      if (dataErrors && Object.keys(dataErrors).length > 0) {
+        const firstKey = Object.keys(dataErrors)[0];
+        errorMessage = `${firstKey}: ${dataErrors[firstKey].message}`;
+      } else {
+        errorMessage = error.data.message || error.message || errorMessage;
+      }
     }
     return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }

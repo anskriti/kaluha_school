@@ -304,7 +304,7 @@ export default function Navbar() {
               {session ? (
                 <div className="flex items-center gap-2 shrink-0">
                   <Link
-                    href={`/dashboard/${session.user.role.toLowerCase()}`}
+                    href={`/dashboard/${(session?.user?.role || session?.user?.user_role || "faculty").toLowerCase() === "teacher" ? "faculty" : (session?.user?.role || session?.user?.user_role || "faculty").toLowerCase()}`}
                     className="flex items-center gap-1 bg-school-blue text-white px-4 py-1.5 rounded-full text-xs font-bold hover:bg-school-blue-deep transition shadow-md shadow-school-blue/15"
                   >
                     <LayoutDashboard size={13} />

@@ -5,8 +5,30 @@ import { getPocketBaseServer, getPbCookieFromRequest } from "@/lib/pocketbase";
 export async function GET() {
   try {
     const pbServer = getPocketBaseServer();
-    const records = await pbServer.collection("teachers").getFullList();
-    return NextResponse.json({ success: true, data: records });
+    // Fetch all active teachers from teacher_directory
+    const records = await pbServer.collection("teacher_directory").getFullList({
+      filter: "is_active = true"
+    });
+    
+    // Map them to match the expected format on the frontend
+    const mapped = records.map((r: any) => {
+      const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL || 'http://127.0.0.1:8090';
+      const photoUrl = r.photo ? `${pbUrl}/api/files/teacher_directory/${r.id}/${r.photo}` : "";
+      return {
+        id: r.id,
+        name: r.name,
+        designation: r.designation,
+        qualification: r.qualification,
+        subjects: r.subject_role, // Maps subject_role to subjects
+        imageUrl: photoUrl, // Maps photo to imageUrl
+        email: r.email,
+        phone: r.phone,
+        joinDate: r.created,
+        employee_id: r.employee_id
+      };
+    });
+
+    return NextResponse.json({ success: true, data: mapped });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -24,21 +46,24 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, designation, qualification, subjects, imageUrl, phone, email, joinDate } = body;
+    const { name, designation, qualification, subjects, phone, email, employee_id, is_active } = body;
 
-    if (!name || !designation) {
-      return NextResponse.json({ success: false, error: "Missing name or designation" }, { status: 400 });
+    if (!name || !designation || !employee_id) {
+      return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    const record = await pbServer.collection("teachers").create({
+    // Authenticate as superuser to save
+    const pbAdmin = getPocketBaseServer();
+    await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+    const record = await pbAdmin.collection("teacher_directory").create({
       name,
       designation,
       qualification: qualification || "",
-      subjects: subjects || "",
-      imageUrl: imageUrl || null,
-      phone: phone || null,
-      email: email || null,
-      joinDate: joinDate || null,
+      subject_role: subjects || "",
+      email: email || "",
+      employee_id,
+      is_active: is_active !== undefined ? is_active : true
     });
 
     return NextResponse.json({ success: true, data: record });
@@ -57,48 +82,119 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const userRole = pbServer.authStore.model.role;
-    const userEmail = pbServer.authStore.model.email;
+    const model = pbServer.authStore.model;
+    const collectionName = model.collectionName;
+    const userId = model.id;
+    const directoryRecordId = model.directory_record;
 
-    const body = await req.json();
-    const { id, name, designation, qualification, subjects, imageUrl, phone, email, joinDate } = body;
+    // Print the entire authenticated session
+    console.log("--- Authenticated Session Model ---");
+    console.log(JSON.stringify(model, null, 2));
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: "Missing teacher id" }, { status: 400 });
+    // Determine and enforce roles
+    let userRole = model.role || model.user_role;
+    if (collectionName === "teacher_auth") {
+      userRole = "FACULTY";
+      model.user_role = "teacher";
+      model.role = "FACULTY";
+    } else if (collectionName === "students") {
+      userRole = "STUDENT";
+      model.user_role = "student";
+      model.role = "STUDENT";
+    } else if (collectionName === "users") {
+      userRole = "ADMIN";
+      model.user_role = "admin";
+      model.role = "ADMIN";
     }
 
-    // Fetch target teacher record
-    const targetTeacher = await pbServer.collection("teachers").getOne(id);
+    console.log("session.user_role:", model.user_role);
+    console.log("session.role:", model.role);
+    console.log("session.collectionName:", collectionName);
+    console.log("session.record:", JSON.stringify(model, null, 2));
 
-    if (userRole === "FACULTY") {
-      // Must match email
-      if (targetTeacher.email !== userEmail) {
-        return NextResponse.json({ success: false, error: "Forbidden: You can only edit your own profile photo." }, { status: 403 });
+    const body = await req.json();
+    const { id, imageUrl } = body;
+
+    if (collectionName === "teacher_auth" || userRole === "FACULTY") {
+      if (imageUrl === "" || imageUrl === null || body.deletePhoto) {
+        // Clear photo in both teacher_auth and teacher_directory
+        const pbAdmin = getPocketBaseServer();
+        await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+        await pbAdmin.collection("teacher_auth").update(userId, {
+          profile_photo: null
+        });
+
+        if (directoryRecordId) {
+          await pbAdmin.collection("teacher_directory").update(directoryRecordId, {
+            photo: null
+          });
+        }
+
+        return NextResponse.json({ success: true, data: { imageUrl: null } });
       }
 
-      // Faculty can only update imageUrl
-      const record = await pbServer.collection("teachers").update(id, {
-        imageUrl: imageUrl !== undefined ? imageUrl : targetTeacher.imageUrl,
-      });
-      return NextResponse.json({ success: true, data: record });
+      if (!imageUrl) {
+        return NextResponse.json({ success: false, error: "Missing image data" }, { status: 400 });
+      }
+
+      // Convert base64 data URL to file buffer
+      const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+      const mimeTypeMatch = imageUrl.match(/^data:(image\/\w+);base64,/);
+      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "image/jpeg";
+      const extension = mimeType.split("/")[1] || "jpg";
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      // Authenticate as superuser to perform administrative updates
+      const pbAdmin = getPocketBaseServer();
+      await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+      // 1. Save in teacher_auth.profile_photo
+      const authFormData = new FormData();
+      const authBlob = new Blob([buffer], { type: mimeType });
+      authFormData.append("profile_photo", authBlob, `profile_${userId}.${extension}`);
+      
+      const updatedAuth = await pbAdmin.collection("teacher_auth").update(userId, authFormData);
+
+      // 2. Synchronize to teacher_directory.photo
+      if (directoryRecordId) {
+        const dirFormData = new FormData();
+        const dirBlob = new Blob([buffer], { type: mimeType });
+        dirFormData.append("photo", dirBlob, `photo_${directoryRecordId}.${extension}`);
+        
+        await pbAdmin.collection("teacher_directory").update(directoryRecordId, dirFormData);
+      }
+
+      const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL || 'http://127.0.0.1:8090';
+      const finalPhotoUrl = `${pbUrl}/api/files/teacher_auth/${userId}/${updatedAuth.profile_photo}`;
+
+      return NextResponse.json({ success: true, data: { imageUrl: finalPhotoUrl } });
     } else if (userRole === "ADMIN") {
-      // Admin can update all fields
-      const record = await pbServer.collection("teachers").update(id, {
-        ...(name && { name }),
-        ...(designation && { designation }),
-        ...(qualification !== undefined && { qualification }),
-        ...(subjects !== undefined && { subjects }),
-        ...(imageUrl !== undefined && { imageUrl }),
-        ...(phone !== undefined && { phone }),
-        ...(email !== undefined && { email }),
-        ...(joinDate !== undefined && { joinDate }),
+      if (!id) {
+        return NextResponse.json({ success: false, error: "Missing teacher id" }, { status: 400 });
+      }
+
+      const pbAdmin = getPocketBaseServer();
+      await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+      const record = await pbAdmin.collection("teacher_directory").update(id, {
+        ...(body.name && { name: body.name }),
+        ...(body.designation && { designation: body.designation }),
+        ...(body.qualification !== undefined && { qualification: body.qualification }),
+        ...(body.subjects !== undefined && { subject_role: body.subjects }),
+        ...(body.email !== undefined && { email: body.email }),
+        ...(body.employee_id !== undefined && { employee_id: body.employee_id }),
+        ...(body.is_active !== undefined && { is_active: body.is_active })
       });
+
       return NextResponse.json({ success: true, data: record });
     } else {
       return NextResponse.json({ success: false, error: "Unauthorized role" }, { status: 403 });
     }
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error("Teacher profile update error stack:");
+    console.error(error.stack || error);
+    return NextResponse.json({ success: false, error: error.message || error }, { status: 500 });
   }
 }
 
@@ -120,7 +216,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing teacher id" }, { status: 400 });
     }
 
-    await pbServer.collection("teachers").delete(id);
+    const pbAdmin = getPocketBaseServer();
+    await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+    // Deactivate instead of hard delete to preserve historical integrity, or hard delete if desired
+    await pbAdmin.collection("teacher_directory").delete(id);
 
     return NextResponse.json({ success: true, message: "Teacher deleted successfully" });
   } catch (error: any) {

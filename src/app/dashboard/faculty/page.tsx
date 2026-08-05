@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSession, signOut } from "@/hooks/useAuth";
+import { useSession, signOut, useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { 
   LayoutDashboard, BookOpen, FileText, Bell, Calendar, Award, 
   CheckSquare, FolderOpen, Video, User, Settings, LogOut, 
   Upload, Trash2, Edit3, Plus, Search, FileDown, Eye, AlertCircle,
   Crop, Sparkles, Sliders, RefreshCw, Moon, Sun, Check, ArrowRight,
-  Info, Printer, ChevronRight, X
+  Info, Printer, ChevronRight, X, ArrowUp, ArrowDown
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -53,6 +53,23 @@ export default function FacultyDashboard() {
   const [noticeCategory, setNoticeCategory] = useState("General");
   const [publishSchedule, setPublishSchedule] = useState("");
   const [noticeStatus, setNoticeStatus] = useState("Published");
+
+  // Notice Type Specific Fields (structured JSON data)
+  const [examTable, setExamTable] = useState<any[]>([
+    { subject: "", examDate: "", day: "", time: "", fullMarks: "", room: "" }
+  ]);
+  const [noticeTimetable, setNoticeTimetable] = useState<any>({
+    Monday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+    Tuesday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+    Wednesday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+    Thursday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+    Friday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+    Saturday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" }))
+  });
+  // Active day for the class routine editor (notice)
+  const [activeTimetableDay, setActiveTimetableDay] = useState<string>("Monday");
+  // Preview Notice Modal state
+  const [previewNoticeItem, setPreviewNoticeItem] = useState<any | null>(null);
 
   // Routine Specific Fields
   const [routineType, setRoutineType] = useState("CLASS");
@@ -122,11 +139,62 @@ export default function FacultyDashboard() {
     }
   }, [status]);
 
+  const { refreshSession } = useAuth();
+
+  // Contact update form states
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [contactStatus, setContactStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [contactFeedback, setContactFeedback] = useState("");
+
+  // Initialize contact fields when session is loaded
+  useEffect(() => {
+    if (session?.user) {
+      setEditEmail(session.user.email || "");
+      setEditPhone(session.user.phone || session.user.mobile || "");
+    }
+  }, [session]);
+
+  const handleUpdateContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editEmail) {
+      setContactStatus("error");
+      setContactFeedback("Email cannot be empty.");
+      return;
+    }
+
+    setContactStatus("loading");
+    setContactFeedback("");
+
+    try {
+      const res = await fetch("/api/profile/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: editEmail, phone: editPhone })
+      }).then(r => r.json());
+
+      if (res.success) {
+        setContactStatus("success");
+        setContactFeedback("Contact info updated successfully!");
+        fetchData();
+        if (refreshSession) refreshSession();
+      } else {
+        setContactStatus("error");
+        setContactFeedback(res.error || "Failed to update profile.");
+      }
+    } catch (err: any) {
+      setContactStatus("error");
+      setContactFeedback(err.message || "An error occurred.");
+    }
+  };
+
   // Load teacher profile when teachers list or session changes
   useEffect(() => {
     if (session?.user && teachers.length > 0) {
       const match = teachers.find(
-        (t) => t.email?.toLowerCase().trim() === session.user.email?.toLowerCase().trim()
+        (t) => 
+          (session.user.directory_record && t.id === session.user.directory_record) ||
+          (t.email && t.email.toLowerCase().trim() === session.user.email?.toLowerCase().trim())
       );
       if (match) {
         setTeacherProfile(match);
@@ -158,7 +226,14 @@ export default function FacultyDashboard() {
       if (resNotice.success) setNotices(resNotice.data || []);
       if (resRoutine.success) setRoutines(resRoutine.data || []);
       if (resResult.success) setResults(resResult.data || []);
-      if (resMaterial.success) setMaterials(resMaterial.data || []);
+      if (resMaterial.success) {
+        const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL || "http://127.0.0.1:8090";
+        const formatted = (resMaterial.data || []).map((r: any) => ({
+          ...r,
+          fileUrl: r.fileUrl ? `${pbUrl}/api/files/study_materials/${r.id}/${r.fileUrl}` : ""
+        }));
+        setMaterials(formatted);
+      }
       if (resVideo.success) setVideos(resVideo.data || []);
       if (resStudents.success) setStudents(resStudents.data || []);
       if (resTeachers.success) setTeachers(resTeachers.data || []);
@@ -298,6 +373,38 @@ export default function FacultyDashboard() {
         fetchData();
       } else {
         alert("Failed to save: " + res.error);
+      }
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const deleteProfilePhoto = async () => {
+    if (!confirm("Are you sure you want to delete your profile photo?")) return;
+    setUploadingPhoto(true);
+
+    try {
+      const res = await fetch("/api/teachers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: teacherProfile?.id,
+          deletePhoto: true
+        })
+      }).then(r => r.json());
+
+      if (res.success) {
+        alert("Profile photo deleted successfully!");
+        setPhotoPreview(null);
+        setOriginalPhoto(null);
+        setCroppedPhoto(null);
+        setImageSizeBefore(0);
+        setImageSizeAfter(0);
+        fetchData();
+      } else {
+        alert("Failed to delete: " + res.error);
       }
     } catch (e: any) {
       alert("Error: " + e.message);
@@ -478,7 +585,16 @@ export default function FacultyDashboard() {
       if (editItem) formData.append("id", editItem.id);
       formData.append("title", titleText);
       formData.append("category", noticeCategory);
-      formData.append("content", descText);
+      
+      // Determine content based on notice type
+      let finalContent = descText;
+      if (noticeCategory === "Examination Notice") {
+        finalContent = JSON.stringify(examTable);
+      } else if (noticeCategory === "Class Routine") {
+        finalContent = JSON.stringify(noticeTimetable);
+      }
+      
+      formData.append("content", finalContent);
       formData.append("status", noticeStatus);
       formData.append("publishDate", publishSchedule || new Date().toISOString());
       if (selectedFile) formData.append("pdfUrl", selectedFile);
@@ -563,17 +679,17 @@ export default function FacultyDashboard() {
   // Study Material save helper
   const saveMaterial = async () => {
     try {
-      const payload = {
-        className: targetClass,
-        subject: targetSubject,
-        title: titleText,
-        description: descText
-      };
-      const method = editItem ? "PUT" : "POST";
+      const formData = new FormData();
+      if (editItem) formData.append("id", editItem.id);
+      formData.append("className", targetClass);
+      formData.append("subject", targetSubject);
+      formData.append("title", titleText);
+      formData.append("description", descText);
+      if (selectedFile) formData.append("fileUrl", selectedFile);
+
       const res = await fetch("/api/materials", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editItem ? { ...payload, id: editItem.id } : payload)
+        method: "POST",
+        body: formData
       }).then(r => r.json());
 
       if (res.success) {
@@ -581,6 +697,8 @@ export default function FacultyDashboard() {
         setModalType(null);
         setEditItem(null);
         fetchData();
+      } else {
+        alert("Error saving study material: " + res.error);
       }
     } catch (e: any) {
       alert(e.message);
@@ -634,6 +752,10 @@ export default function FacultyDashboard() {
 
   // Triggers for modals
   const triggerEdit = (type: string, item: any) => {
+    let normType = type;
+    if (type === "assignments") normType = "assignment";
+    if (type === "videos") normType = "video";
+
     setEditItem(item);
     setTargetClass(item.className || "V");
     setTargetSubject(item.subject || "Bengali");
@@ -641,12 +763,36 @@ export default function FacultyDashboard() {
     setDescText(item.instruction || item.content || item.description || "");
     setDeadlineDate(item.deadline ? item.deadline.split("T")[0] : "");
     setUrlField(item.videoUrl || "");
-    setModalType(type);
+    setModalType(normType);
 
     if (type === "notice") {
-      setNoticeCategory(item.category || "General");
+      setNoticeCategory(item.category || "General Notice");
       setNoticeStatus(item.status || "Published");
       setPublishSchedule(item.publishDate ? item.publishDate.split("T")[0] : "");
+      
+      // Load structured content based on notice type
+      if (item.category === "Examination Notice") {
+        try {
+          setExamTable(JSON.parse(item.content));
+        } catch (_) {
+          setExamTable([{ subject: "", examDate: "", day: "", time: "", fullMarks: "", room: "" }]);
+        }
+      } else if (item.category === "Class Routine") {
+        try {
+          setNoticeTimetable(JSON.parse(item.content));
+        } catch (_) {
+          setNoticeTimetable({
+            Monday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+            Tuesday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+            Wednesday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+            Thursday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+            Friday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+            Saturday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" }))
+          });
+        }
+      } else {
+        setDescText(item.content || "");
+      }
     }
 
     if (type === "routine") {
@@ -668,18 +814,33 @@ export default function FacultyDashboard() {
   };
 
   const triggerCreate = (type: string) => {
+    let normType = type;
+    if (type === "assignments") normType = "assignment";
+    if (type === "videos") normType = "video";
+
     setEditItem(null);
     setTitleText("");
     setDescText("");
     setDeadlineDate("");
     setUrlField("");
     setSelectedFile(null);
-    setModalType(type);
+    setModalType(normType);
 
     if (type === "notice") {
-      setNoticeCategory("General");
+      setNoticeCategory("General Notice");
       setNoticeStatus("Published");
       setPublishSchedule("");
+      setDescText("");
+      setExamTable([{ subject: "", examDate: "", day: "", time: "", fullMarks: "", room: "" }]);
+      setNoticeTimetable({
+        Monday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+        Tuesday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+        Wednesday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+        Thursday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+        Friday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" })),
+        Saturday: Array(8).fill(null).map(() => ({ subject: "", teacher: "" }))
+      });
+      setActiveTimetableDay("Monday");
     }
 
     if (type === "routine") {
@@ -937,6 +1098,16 @@ export default function FacultyDashboard() {
                       >
                         {photoPreview ? "Replace Photo" : "Upload Photo"}
                       </button>
+
+                      {photoPreview && (
+                        <button
+                          onClick={deleteProfilePhoto}
+                          disabled={uploadingPhoto}
+                          className="w-full py-2.5 border border-red-200 text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold text-xs uppercase rounded-xl tracking-wider transition cursor-pointer"
+                        >
+                          Delete Photo
+                        </button>
+                      )}
 
                       {photoPreview && (originalPhoto || croppedPhoto) && (
                         <button
@@ -1255,9 +1426,22 @@ export default function FacultyDashboard() {
                             }`}>{nt.status}</span>
                           </div>
                           <h3 className="font-black text-sm uppercase mt-2.5">{nt.title}</h3>
-                          <p className="text-slate-500 text-xs mt-1.5 line-clamp-2">{nt.content}</p>
+                          <p className="text-slate-500 text-xs mt-1.5 line-clamp-2">
+                            {nt.category === "Examination Notice" 
+                              ? "[Examination Timetable]" 
+                              : nt.category === "Class Routine" 
+                                ? "[Class Timetable]" 
+                                : nt.content}
+                          </p>
                         </div>
                         <div className="flex gap-2">
+                          <button 
+                            onClick={() => setPreviewNoticeItem(nt)} 
+                            className="p-2 border rounded-lg text-school-blue hover:bg-school-blue/5 cursor-pointer"
+                            title="Preview Notice"
+                          >
+                            <Eye size={13} />
+                          </button>
                           <button onClick={() => triggerEdit("notice", nt)} className="p-2 border rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer"><Edit3 size={13} /></button>
                           <button onClick={() => handleDelete("notices", nt.id)} className="p-2 border rounded-lg text-red-500 hover:bg-red-50 cursor-pointer"><Trash2 size={13} /></button>
                         </div>
@@ -1320,6 +1504,16 @@ export default function FacultyDashboard() {
                       <div className="border-t pt-3 mt-1 flex justify-between items-center text-[10px] text-slate-450 font-bold uppercase">
                         {item.deadline && <span>Deadline: {new Date(item.deadline).toLocaleDateString()}</span>}
                         {item.videoUrl && <span className="truncate max-w-[200px] text-school-blue font-semibold">{item.videoUrl}</span>}
+                        {item.fileUrl && (
+                          <a 
+                            href={item.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-school-blue hover:text-school-blue-deep flex items-center gap-1 font-extrabold cursor-pointer"
+                          >
+                            <FileDown size={11} /> Download PDF
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1357,6 +1551,51 @@ export default function FacultyDashboard() {
                       <div className={`w-5 h-5 bg-white rounded-full shadow transform transition ${darkMode ? "translate-x-7" : ""}`} />
                     </button>
                   </div>
+                </div>
+
+                <div className={`p-6 border rounded-3xl shadow-sm flex flex-col gap-5 ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"}`}>
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider">Update Contact Information</h3>
+                  <form onSubmit={handleUpdateContact} className="flex flex-col gap-4 text-xs font-semibold">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Registered Email</label>
+                      <input 
+                        type="email" 
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        placeholder="Enter new email"
+                        className="p-3 bg-slate-50 dark:bg-slate-955 border dark:border-slate-850 rounded-xl focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Registered Phone Number</label>
+                      <input 
+                        type="text" 
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="Enter 10-digit mobile number"
+                        className="p-3 bg-slate-50 dark:bg-slate-955 border dark:border-slate-850 rounded-xl focus:outline-none"
+                      />
+                    </div>
+
+                    {contactStatus === "success" && (
+                      <div className="p-3 bg-emerald-50 dark:bg-emerald-955/25 border border-emerald-200 text-emerald-800 dark:text-emerald-300 rounded-xl font-bold">
+                        {contactFeedback}
+                      </div>
+                    )}
+                    {contactStatus === "error" && (
+                      <div className="p-3 bg-red-50 dark:bg-red-955/25 border border-red-200 text-red-800 dark:text-red-300 rounded-xl font-bold">
+                        {contactFeedback}
+                      </div>
+                    )}
+
+                    <button 
+                      type="submit" 
+                      disabled={contactStatus === "loading"}
+                      className="bg-school-blue hover:bg-school-blue-deep text-white font-bold text-xs py-3 rounded-xl shadow-md cursor-pointer transition disabled:opacity-50"
+                    >
+                      {contactStatus === "loading" ? "Updating..." : "Update Contact Info"}
+                    </button>
+                  </form>
                 </div>
 
                 <div className={`p-6 border rounded-3xl shadow-sm flex flex-col gap-5 ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"}`}>
@@ -1490,7 +1729,8 @@ export default function FacultyDashboard() {
                 )}
 
                 {/* Content Details / Text */}
-                {["homework", "assignment", "video", "notice", "materials"].includes(modalType) && (
+                {((["homework", "assignment", "video", "materials"].includes(modalType)) ||
+                  (modalType === "notice" && !["Examination Notice", "Class Routine"].includes(noticeCategory))) && (
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] uppercase text-slate-400">Instructions / Description</label>
                     <textarea 
@@ -1516,17 +1756,27 @@ export default function FacultyDashboard() {
                   </div>
                 )}
 
+
+
                 {/* Notice Category */}
                 {modalType === "notice" && (
                   <>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[10px] uppercase text-slate-400">Category</label>
+                      <label className="text-[10px] uppercase text-slate-400">Notice Type</label>
                       <select 
                         value={noticeCategory} 
                         onChange={(e) => setNoticeCategory(e.target.value)} 
                         className="p-3 bg-slate-50 dark:bg-slate-955 border dark:border-slate-850 rounded-xl focus:outline-none"
                       >
-                        {["Academic", "Examination", "Holiday", "Urgent", "General"].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        {[
+                          "General Notice",
+                          "Examination Notice",
+                          "Class Routine",
+                          "Holiday Notice",
+                          "Admission Notice",
+                          "Result Notice",
+                          "Circular"
+                        ].map(type => <option key={type} value={type}>{type}</option>)}
                       </select>
                     </div>
 
@@ -1550,6 +1800,248 @@ export default function FacultyDashboard() {
                         className="p-3 bg-slate-50 dark:bg-slate-955 border dark:border-slate-850 rounded-xl focus:outline-none" 
                       />
                     </div>
+
+                    {/* Dynamic Editor: Examination Notice Table */}
+                    {noticeCategory === "Examination Notice" && (
+                      <div className="flex flex-col gap-3 p-4 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-850 rounded-2xl">
+                        <div className="flex justify-between items-center border-b pb-2">
+                          <span className="text-[10px] uppercase text-slate-400 font-black">Examination Timetable</span>
+                          <button 
+                            type="button"
+                            onClick={() => setExamTable([...examTable, { subject: "", examDate: "", day: "", time: "", fullMarks: "", room: "" }])}
+                            className="bg-school-blue hover:bg-school-blue-deep text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition"
+                          >
+                            <Plus size={10} /> Add Row
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                          {examTable.map((row, idx) => (
+                            <div key={idx} className="p-3 border rounded-xl bg-white dark:bg-slate-900 flex flex-col gap-2 relative">
+                              <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase">
+                                <span>Row {idx + 1}</span>
+                                <div className="flex gap-1.5">
+                                  <button 
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => {
+                                      const updated = [...examTable];
+                                      const temp = updated[idx];
+                                      updated[idx] = updated[idx - 1];
+                                      updated[idx - 1] = temp;
+                                      setExamTable(updated);
+                                    }}
+                                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
+                                  >
+                                    <ArrowUp size={11} />
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    disabled={idx === examTable.length - 1}
+                                    onClick={() => {
+                                      const updated = [...examTable];
+                                      const temp = updated[idx];
+                                      updated[idx] = updated[idx + 1];
+                                      updated[idx + 1] = temp;
+                                      setExamTable(updated);
+                                    }}
+                                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
+                                  >
+                                    <ArrowDown size={11} />
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => {
+                                      if (examTable.length > 1) {
+                                        setExamTable(examTable.filter((_, i) => i !== idx));
+                                      } else {
+                                        alert("Must have at least one row.");
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-red-50 text-red-500 rounded"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div className="flex flex-col gap-0.5">
+                                  <label className="text-slate-400 font-bold uppercase text-[9px]">Subject</label>
+                                  <input 
+                                    type="text"
+                                    value={row.subject}
+                                    onChange={(e) => {
+                                      const updated = [...examTable];
+                                      updated[idx].subject = e.target.value;
+                                      setExamTable(updated);
+                                    }}
+                                    placeholder="e.g. Mathematics"
+                                    className="p-2 border rounded-lg bg-slate-50 dark:bg-slate-950 dark:border-slate-800 text-[10px]"
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <label className="text-slate-400 font-bold uppercase text-[9px]">Exam Date</label>
+                                  <input 
+                                    type="date"
+                                    value={row.examDate}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const updated = [...examTable];
+                                      updated[idx].examDate = val;
+                                      if (val) {
+                                        try {
+                                          const d = new Date(val);
+                                          updated[idx].day = d.toLocaleDateString("en-US", { weekday: "long" });
+                                        } catch (_) {}
+                                      }
+                                      setExamTable(updated);
+                                    }}
+                                    className="p-2 border rounded-lg bg-slate-50 dark:bg-slate-955 dark:border-slate-850 text-[10px]"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div className="flex flex-col gap-0.5">
+                                  <label className="text-slate-400 font-bold uppercase text-[9px]">Day of Week</label>
+                                  <input 
+                                    type="text"
+                                    value={row.day}
+                                    onChange={(e) => {
+                                      const updated = [...examTable];
+                                      updated[idx].day = e.target.value;
+                                      setExamTable(updated);
+                                    }}
+                                    placeholder="e.g. Monday"
+                                    className="p-2 border rounded-lg bg-slate-50 dark:bg-slate-950 dark:border-slate-800 text-[10px]"
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <label className="text-slate-400 font-bold uppercase text-[9px]">Exam Time</label>
+                                  <input 
+                                    type="text"
+                                    value={row.time}
+                                    onChange={(e) => {
+                                      const updated = [...examTable];
+                                      updated[idx].time = e.target.value;
+                                      setExamTable(updated);
+                                    }}
+                                    placeholder="e.g. 10:00 AM - 1:00 PM"
+                                    className="p-2 border rounded-lg bg-slate-50 dark:bg-slate-950 dark:border-slate-800 text-[10px]"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div className="flex flex-col gap-0.5">
+                                  <label className="text-slate-400 font-bold uppercase text-[9px]">Full Marks</label>
+                                  <input 
+                                    type="text"
+                                    value={row.fullMarks}
+                                    onChange={(e) => {
+                                      const updated = [...examTable];
+                                      updated[idx].fullMarks = e.target.value;
+                                      setExamTable(updated);
+                                    }}
+                                    placeholder="e.g. 100"
+                                    className="p-2 border rounded-lg bg-slate-50 dark:bg-slate-955 dark:border-slate-850 text-[10px]"
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <label className="text-slate-400 font-bold uppercase text-[9px]">Room (Optional)</label>
+                                  <input 
+                                    type="text"
+                                    value={row.room}
+                                    onChange={(e) => {
+                                      const updated = [...examTable];
+                                      updated[idx].room = e.target.value;
+                                      setExamTable(updated);
+                                    }}
+                                    placeholder="e.g. Room 102"
+                                    className="p-2 border rounded-lg bg-slate-50 dark:bg-slate-955 dark:border-slate-850 text-[10px]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Editor: Class Routine Weekly Timetable */}
+                    {noticeCategory === "Class Routine" && (
+                      <div className="flex flex-col gap-3 p-4 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-850 rounded-2xl">
+                        <span className="text-[10px] uppercase text-slate-400 font-black border-b pb-2">Class Timetable Editor</span>
+                        
+                        <div className="flex flex-wrap gap-1 border-b pb-2">
+                          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(day => (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => setActiveTimetableDay(day)}
+                              className={`px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase transition cursor-pointer ${
+                                activeTimetableDay === day 
+                                  ? "bg-school-blue text-white shadow-sm" 
+                                  : "bg-slate-100 dark:bg-slate-850 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                              }`}
+                            >
+                              {day.substring(0, 3)}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1 mt-1 text-[10px]">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Editing Periods for {activeTimetableDay}</span>
+                          {Array(8).fill(null).map((_, periodIdx) => {
+                            const periodRow = (noticeTimetable[activeTimetableDay] || [])[periodIdx] || { subject: "", teacher: "" };
+                            return (
+                              <div key={periodIdx} className="grid grid-cols-12 gap-2 items-center border-b border-slate-100 dark:border-slate-850 pb-2">
+                                <span className="col-span-3 text-[9px] font-black text-slate-400 uppercase">Period {periodIdx + 1}</span>
+                                <div className="col-span-5 flex flex-col gap-0.5">
+                                  <input 
+                                    type="text"
+                                    value={periodRow.subject}
+                                    onChange={(e) => {
+                                      const updated = { ...noticeTimetable };
+                                      if (!updated[activeTimetableDay]) {
+                                        updated[activeTimetableDay] = Array(8).fill(null).map(() => ({ subject: "", teacher: "" }));
+                                      }
+                                      updated[activeTimetableDay][periodIdx] = {
+                                        ...updated[activeTimetableDay][periodIdx],
+                                        subject: e.target.value
+                                      };
+                                      setNoticeTimetable(updated);
+                                    }}
+                                    placeholder="Subject"
+                                    className="p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-850 text-[10px]"
+                                  />
+                                </div>
+                                <div className="col-span-4 flex flex-col gap-0.5">
+                                  <input 
+                                    type="text"
+                                    value={periodRow.teacher || ""}
+                                    onChange={(e) => {
+                                      const updated = { ...noticeTimetable };
+                                      if (!updated[activeTimetableDay]) {
+                                        updated[activeTimetableDay] = Array(8).fill(null).map(() => ({ subject: "", teacher: "" }));
+                                      }
+                                      updated[activeTimetableDay][periodIdx] = {
+                                        ...updated[activeTimetableDay][periodIdx],
+                                        teacher: e.target.value
+                                      };
+                                      setNoticeTimetable(updated);
+                                    }}
+                                    placeholder="Teacher"
+                                    className="p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-850 text-[10px]"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1596,8 +2088,8 @@ export default function FacultyDashboard() {
                   </div>
                 )}
 
-                {/* Attachment file uploading (Routines, Video, Notice PDF upload support) */}
-                {["notice", "routine", "video"].includes(modalType) && (
+                {/* Attachment file uploading (Routines, Video, Notice, and Study Materials PDF upload support) */}
+                {["notice", "routine", "video", "materials"].includes(modalType) && (
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] uppercase text-slate-400">Attach Document (PDF only)</label>
                     <input 
@@ -1693,6 +2185,156 @@ export default function FacultyDashboard() {
                 </button>
 
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {previewNoticeItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`rounded-3xl max-w-2xl w-full p-6 md:p-8 shadow-2xl relative border overflow-y-auto max-h-[90vh] ${
+                darkMode ? "bg-slate-900 border-slate-800 text-slate-150" : "bg-white border-slate-100 text-slate-800"
+              }`}
+            >
+              <button 
+                onClick={() => setPreviewNoticeItem(null)} 
+                className="absolute top-5 right-5 w-8 h-8 rounded-full border flex items-center justify-center text-slate-500 hover:bg-slate-50 cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-[9px] bg-amber-50 text-amber-800 font-extrabold px-2.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">
+                  {previewNoticeItem.category}
+                </span>
+                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider ${
+                  previewNoticeItem.status === "Published" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {previewNoticeItem.status}
+                </span>
+              </div>
+
+              <h2 className="font-black text-base md:text-lg uppercase tracking-tight mb-4 text-slate-800 dark:text-slate-100">
+                {previewNoticeItem.title}
+              </h2>
+
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
+                Publish Date: {previewNoticeItem.publishDate ? new Date(previewNoticeItem.publishDate).toLocaleDateString() : new Date().toLocaleDateString()}
+              </p>
+
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mb-4 text-xs">
+                {/* Render General / Text notices */}
+                {!["Examination Notice", "Class Routine"].includes(previewNoticeItem.category) && (
+                  <p className="whitespace-pre-line leading-relaxed font-medium">
+                    {previewNoticeItem.content}
+                  </p>
+                )}
+
+                {/* Render Examination Notice Table */}
+                {previewNoticeItem.category === "Examination Notice" && (() => {
+                  let rows = [];
+                  try {
+                    rows = JSON.parse(previewNoticeItem.content);
+                  } catch (_) {}
+                  if (!Array.isArray(rows) || rows.length === 0) {
+                    return <p className="text-slate-450 italic text-center py-4">No exam schedule records found or invalid data format.</p>;
+                  }
+                  return (
+                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl mt-2">
+                      <table className="min-w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-955 border-b border-slate-100 dark:border-slate-800 font-bold uppercase text-[9px] text-slate-400">
+                            <th className="p-3">Subject</th>
+                            <th className="p-3">Exam Date</th>
+                            <th className="p-3">Day</th>
+                            <th className="p-3">Time</th>
+                            <th className="p-3">Full Marks</th>
+                            <th className="p-3">Room</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r: any, idx: number) => (
+                            <tr key={idx} className="border-b last:border-0 border-slate-100 dark:border-slate-800 font-medium">
+                              <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{r.subject || "-"}</td>
+                              <td className="p-3">{r.examDate || "-"}</td>
+                              <td className="p-3">{r.day || "-"}</td>
+                              <td className="p-3">{r.time || "-"}</td>
+                              <td className="p-3 font-semibold text-school-blue">{r.fullMarks || "-"}</td>
+                              <td className="p-3 text-slate-500">{r.room || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
+                {/* Render Class Routine Timetable */}
+                {previewNoticeItem.category === "Class Routine" && (() => {
+                  let timetable: any = null;
+                  try {
+                    timetable = JSON.parse(previewNoticeItem.content);
+                  } catch (_) {}
+                  if (!timetable) {
+                    return <p className="text-slate-455 italic text-center py-4">No routine timetable records found or invalid data format.</p>;
+                  }
+                  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                  return (
+                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl mt-2">
+                      <table className="min-w-full text-center border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-955 border-b border-slate-100 dark:border-slate-800 font-bold uppercase text-[9px] text-slate-400">
+                            <th className="p-3 text-left">Day</th>
+                            {Array(8).fill(null).map((_, i) => (
+                              <th key={i} className="p-3 font-black">P{i + 1}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {days.map(day => {
+                            const periods = timetable[day] || [];
+                            return (
+                              <tr key={day} className="border-b last:border-0 border-slate-100 dark:border-slate-800 font-medium">
+                                <td className="p-3 text-left font-black uppercase text-[9px] text-slate-400 bg-slate-55/50 dark:bg-slate-955/20">{day.substring(0, 3)}</td>
+                                {Array(8).fill(null).map((_, pIdx) => {
+                                  const p = periods[pIdx] || { subject: "", teacher: "" };
+                                  return (
+                                    <td key={pIdx} className="p-2 border-l border-slate-100 dark:border-slate-850 min-w-24">
+                                      <div className="font-bold text-slate-800 dark:text-slate-200">{p.subject || "-"}</div>
+                                      {p.teacher && <div className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">{p.teacher}</div>}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {previewNoticeItem.pdfUrl && (
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col gap-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Attachments</span>
+                  <a 
+                    href={previewNoticeItem.pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-955 hover:bg-slate-100 text-xs font-bold text-school-blue transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText size={16} className="text-red-500" />
+                      <span>Download Attached Circular (PDF)</span>
+                    </div>
+                    <FileDown size={14} />
+                  </a>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

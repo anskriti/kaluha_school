@@ -17,7 +17,12 @@ export default function StudyMaterials() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.data)) {
-          setMaterials(data.data);
+          const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL || "http://127.0.0.1:8090";
+          const formatted = data.data.map((r: any) => ({
+            ...r,
+            fileUrl: r.fileUrl ? `${pbUrl}/api/files/study_materials/${r.id}/${r.fileUrl}` : ""
+          }));
+          setMaterials(formatted);
         }
       })
       .catch(() => {})

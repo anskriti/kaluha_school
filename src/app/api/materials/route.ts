@@ -35,22 +35,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { className, subject, title, description, fileUrl } = body;
+    const formData = await req.formData();
+    const id = formData.get("id") as string;
+    const className = formData.get("className") as string;
+    const subject = formData.get("subject") as string;
+    const title = formData.get("title") as string;
+    const file = formData.get("fileUrl");
 
-    if (!className || !subject || !title || !fileUrl) {
+    if (!className || !subject || !title) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    const record = await pbServer.collection("study_materials").create({
-      className,
-      subject,
-      title,
-      description: description || null,
-      fileUrl,
-      facultyId: pbServer.authStore.model.id,
-      facultyName: pbServer.authStore.model.name || "Faculty Member",
-    });
+    // If it's a creation, make sure a file is provided
+    if (!id && (!file || !(file instanceof File) || file.size === 0)) {
+      return NextResponse.json({ success: false, error: "Study material file is required" }, { status: 400 });
+    }
+
+    formData.set("facultyId", pbServer.authStore.model.id);
+    formData.set("facultyName", pbServer.authStore.model.name || "Faculty Member");
+
+    // Authenticate as superuser to save/update study materials in PocketBase
+    const pbAdmin = getPocketBaseServer();
+    await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+    let record;
+    if (id) {
+      formData.delete("id");
+      record = await pbAdmin.collection("study_materials").update(id, formData);
+    } else {
+      record = await pbAdmin.collection("study_materials").create(formData);
+    }
 
     return NextResponse.json({ success: true, data: record });
   } catch (error: any) {
@@ -76,7 +90,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing study material id" }, { status: 400 });
     }
 
-    await pbServer.collection("study_materials").delete(id);
+    // Authenticate as superuser to delete study materials in PocketBase
+    const pbAdmin = getPocketBaseServer();
+    await pbAdmin.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
+
+    await pbAdmin.collection("study_materials").delete(id);
 
     return NextResponse.json({ success: true, message: "Study material deleted successfully" });
   } catch (error: any) {

@@ -15,7 +15,16 @@ function NoticeBoardContent() {
   const [selectedNotice, setSelectedNotice] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const categories = ["ALL", "Academic", "Examination", "Holiday", "Urgent", "General"];
+  const categories = [
+    "ALL", 
+    "General Notice", 
+    "Examination Notice", 
+    "Class Routine", 
+    "Holiday Notice", 
+    "Admission Notice", 
+    "Result Notice", 
+    "Circular"
+  ];
 
   useEffect(() => {
     setLoading(true);
@@ -124,7 +133,11 @@ function NoticeBoardContent() {
                 {notice.title}
               </h3>
               <p className="text-slate-500 text-xs md:text-sm leading-relaxed line-clamp-2">
-                {notice.content}
+                {notice.category === "Examination Notice" 
+                  ? "[Examination Timetable]" 
+                  : notice.category === "Class Routine" 
+                    ? "[Class Timetable]" 
+                    : notice.content}
               </p>
 
               <div className="flex justify-between items-center mt-2 text-[10px] text-school-blue font-bold uppercase tracking-wider border-t border-slate-50 pt-2.5">
@@ -183,9 +196,97 @@ function NoticeBoardContent() {
                 <h3 className="font-extrabold text-slate-800 text-sm md:text-base leading-snug mb-3">
                   {selectedNotice.title}
                 </h3>
-                <p className="text-slate-600 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium text-justify">
-                  {selectedNotice.content}
-                </p>
+                
+                {/* Render General / Text notices */}
+                {!["Examination Notice", "Class Routine"].includes(selectedNotice.category) && (
+                  <p className="text-slate-600 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium text-justify">
+                    {selectedNotice.content}
+                  </p>
+                )}
+
+                {/* Render Examination Notice Table */}
+                {selectedNotice.category === "Examination Notice" && (() => {
+                  let rows = [];
+                  try {
+                    rows = JSON.parse(selectedNotice.content);
+                  } catch (_) {}
+                  if (!Array.isArray(rows) || rows.length === 0) {
+                    return <p className="text-slate-400 italic text-center py-4 text-xs font-semibold">No exam schedule records found or invalid data format.</p>;
+                  }
+                  return (
+                    <div className="overflow-x-auto border border-slate-100 rounded-2xl mt-2">
+                      <table className="min-w-full text-left border-collapse text-[11px] md:text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100 font-bold uppercase text-[9px] text-slate-400">
+                            <th className="p-3">Subject</th>
+                            <th className="p-3">Exam Date</th>
+                            <th className="p-3">Day</th>
+                            <th className="p-3">Time</th>
+                            <th className="p-3">Full Marks</th>
+                            <th className="p-3">Room</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r: any, idx: number) => (
+                            <tr key={idx} className="border-b last:border-0 border-slate-100 font-medium">
+                              <td className="p-3 font-bold text-slate-800">{r.subject || "-"}</td>
+                              <td className="p-3 text-slate-600">{r.examDate || "-"}</td>
+                              <td className="p-3 text-slate-600">{r.day || "-"}</td>
+                              <td className="p-3 text-slate-600">{r.time || "-"}</td>
+                              <td className="p-3 font-semibold text-school-blue">{r.fullMarks || "-"}</td>
+                              <td className="p-3 text-slate-500">{r.room || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
+                {/* Render Class Routine Timetable */}
+                {selectedNotice.category === "Class Routine" && (() => {
+                  let timetable: any = null;
+                  try {
+                    timetable = JSON.parse(selectedNotice.content);
+                  } catch (_) {}
+                  if (!timetable) {
+                    return <p className="text-slate-400 italic text-center py-4 text-xs font-semibold">No routine timetable records found or data format is invalid.</p>;
+                  }
+                  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                  return (
+                    <div className="overflow-x-auto border border-slate-100 rounded-2xl mt-2">
+                      <table className="min-w-full text-center border-collapse text-[11px] md:text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100 font-bold uppercase text-[9px] text-slate-400">
+                            <th className="p-3 text-left">Day</th>
+                            {Array(8).fill(null).map((_, i) => (
+                              <th key={i} className="p-3 font-black">P{i + 1}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {days.map(day => {
+                            const periods = timetable[day] || [];
+                            return (
+                              <tr key={day} className="border-b last:border-0 border-slate-100 font-medium">
+                                <td className="p-3 text-left font-black uppercase text-[9px] text-slate-400 bg-slate-50/50">{day.substring(0, 3)}</td>
+                                {Array(8).fill(null).map((_, pIdx) => {
+                                  const p = periods[pIdx] || { subject: "", teacher: "" };
+                                  return (
+                                    <td key={pIdx} className="p-2 border-l border-slate-100 min-w-24">
+                                      <div className="font-bold text-slate-800">{p.subject || "-"}</div>
+                                      {p.teacher && <div className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">{p.teacher}</div>}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Attachments & Downloads */}

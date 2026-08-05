@@ -21,15 +21,15 @@ export async function POST(req: NextRequest) {
     // Authenticate as superuser to bypass rules on updating 'verified' field
     await pbServer.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
 
-    // Find the user by username in either students or teachers_auth
+    // Find the user by username in either students or teacher_auth
     let userRecord = null;
     let collectionName = "";
     try {
       userRecord = await pbServer.collection("students").getFirstListItem(`username="${username}"`);
       collectionName = "students";
     } catch {
-      userRecord = await pbServer.collection("teachers_auth").getFirstListItem(`username="${username}"`);
-      collectionName = "teachers_auth";
+      userRecord = await pbServer.collection("teacher_auth").getFirstListItem(`username="${username}"`);
+      collectionName = "teacher_auth";
     }
 
     // Update verified status to true
@@ -37,16 +37,16 @@ export async function POST(req: NextRequest) {
       verified: true 
     });
 
-    const approvalMsg = updatedUser.role === "STUDENT" 
+    const approvalMsg = collectionName === "students" 
       ? "Your registration has been submitted successfully and is awaiting approval from the school administrator."
-      : "Account verified successfully! You can now log in.";
+      : "Your account is awaiting approval by the School Administrator.";
 
     return NextResponse.json({ 
       success: true, 
       message: approvalMsg,
       user: {
         username: updatedUser.username,
-        role: updatedUser.role,
+        role: updatedUser.role || (collectionName === "teacher_auth" ? "FACULTY" : "STUDENT"),
         verified: updatedUser.verified
       }
     });

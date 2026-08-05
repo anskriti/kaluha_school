@@ -31,7 +31,8 @@ export async function GET(req: NextRequest) {
       filterParts.push(`rollNumber = "${rollNumber}"`);
     }
     if (approvalStatus) {
-      filterParts.push(`approvalStatus = "${approvalStatus}"`);
+      const mappedStatus = approvalStatus === "APPROVED" ? "Approved" : (approvalStatus === "REJECTED" ? "Rejected" : "Pending");
+      filterParts.push(`approval_status = "${mappedStatus}"`);
     }
 
     const filterString = filterParts.join(" && ");
@@ -39,7 +40,12 @@ export async function GET(req: NextRequest) {
       filter: filterString,
     });
 
-    return NextResponse.json({ success: true, data: students });
+    const mappedStudents = students.map(s => ({
+      ...s,
+      approvalStatus: s.approval_status === "Approved" ? "APPROVED" : (s.approval_status === "Rejected" ? "REJECTED" : "PENDING")
+    }));
+
+    return NextResponse.json({ success: true, data: mappedStudents });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -71,12 +77,19 @@ export async function PUT(req: NextRequest) {
     // Authenticate as superuser to bypass rules on updating 'verified' field
     await pbServer.collection('_superusers').authWithPassword('admin@kaluha.com', 'password123');
 
+    const mappedStatus = approvalStatus === "APPROVED" ? "Approved" : (approvalStatus === "REJECTED" ? "Rejected" : "Pending");
+
     const updatedStudent = await pbServer.collection("students").update(id, {
-      approvalStatus,
+      approval_status: mappedStatus,
       className: className || student.className,
       remarks: remarks || null,
       verified: approvalStatus === "APPROVED" ? true : student.verified,
     });
+
+    const mappedUpdatedStudent = {
+      ...updatedStudent,
+      approvalStatus: updatedStudent.approval_status === "Approved" ? "APPROVED" : (updatedStudent.approval_status === "Rejected" ? "REJECTED" : "PENDING")
+    };
 
     // Simulate sending email/in-app notification
     console.log(`
@@ -87,13 +100,13 @@ export async function PUT(req: NextRequest) {
 │ SUBJECT: School Account Registration Updated            │
 │ STATUS:  ${approvalStatus.padEnd(46)} │
 │ REMARKS: ${(remarks || "None").padEnd(46)} │
-│ └────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────┘
     `);
 
     return NextResponse.json({ 
       success: true, 
       message: `Student account registration updated successfully. Simulated email sent to ${updatedStudent.email}.`,
-      data: updatedStudent
+      data: mappedUpdatedStudent
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
