@@ -6,8 +6,8 @@ export async function GET(req: NextRequest) {
     const cookie = getPbCookieFromRequest(req);
     const pbServer = getPocketBaseServer(cookie);
 
-    // Verify session and role ADMIN
-    if (!pbServer.authStore.isValid || !pbServer.authStore.model || pbServer.authStore.model.role !== "ADMIN") {
+    // Verify session and role ADMIN or FACULTY
+    if (!pbServer.authStore.isValid || !pbServer.authStore.model || !["ADMIN", "FACULTY"].includes(pbServer.authStore.model.role)) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
     }
 

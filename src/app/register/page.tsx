@@ -339,12 +339,12 @@ export default function RegisterPage() {
                           className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-school-blue"
                         >
                           <option value="">Select Class</option>
-                          <option value="Class V">Class V</option>
-                          <option value="Class VI">Class VI</option>
-                          <option value="Class VII">Class VII</option>
-                          <option value="Class VIII">Class VIII</option>
-                          <option value="Class IX">Class IX</option>
-                          <option value="Class X">Class X</option>
+                          <option value="V">Class V</option>
+                          <option value="VI">Class VI</option>
+                          <option value="VII">Class VII</option>
+                          <option value="VIII">Class VIII</option>
+                          <option value="IX">Class IX</option>
+                          <option value="X">Class X</option>
                         </select>
                         {errors.className && <p className="text-red-500 text-[10px] mt-0.5">{errors.className.message}</p>}
                       </div>

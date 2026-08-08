@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     const filterParts: string[] = [];
 
     if (className) {
-      filterParts.push(`className = "${className}"`);
+      const normalizedClass = className.replace(/^Class\s+/i, "").trim();
+      filterParts.push(`(className = "${normalizedClass}" || className = "Class ${normalizedClass}")`);
     }
     if (date) {
       filterParts.push(`date = "${date}"`);

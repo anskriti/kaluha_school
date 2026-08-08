@@ -5,12 +5,15 @@ import { getPocketBaseServer, getPbCookieFromRequest } from "@/lib/pocketbase";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const className = searchParams.get("className");
+    let className = searchParams.get("className");
+    if (className) {
+      className = className.replace(/^Class\s+/i, "").trim();
+    }
 
     const pbServer = getPocketBaseServer();
     const filterParts: string[] = [];
     if (className && className !== "ALL") {
-      filterParts.push(`className = "${className}"`);
+      filterParts.push(`(className = "${className}" || className = "Class ${className}")`);
     }
 
     const filterString = filterParts.join(" && ");

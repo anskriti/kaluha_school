@@ -122,11 +122,12 @@ export default function StudentDashboard() {
     }
     setSubmittingApp(true);
     try {
+      const resolvedType = type === "LIBRARY" ? "LIBRARY_CARD" : type;
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type,
+          type: resolvedType,
           studentName: session?.user?.name || session?.user?.username || "Student",
           studentId: session?.user?.username || "anonymous",
           data: JSON.stringify({
@@ -156,22 +157,33 @@ export default function StudentDashboard() {
   const handleFeedback = async (type: "FEEDBACK" | "COMPLAINT", text: string, setText: any) => {
     if (!text.trim()) return;
     try {
+      const payload = type === "FEEDBACK"
+        ? {
+            name: session?.user?.name || "Student",
+            email: session?.user?.email || "student@kaluha.com",
+            role: "STUDENT",
+            content: text,
+            rating: 5
+          }
+        : {
+            title: text.length > 50 ? text.substring(0, 47) + "..." : text,
+            description: text
+          };
+
       const res = await fetch(type === "FEEDBACK" ? "/api/feedback" : "/api/complaints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          studentId: session?.user?.username,
-          studentName: session?.user?.name || "Student"
-        })
+        body: JSON.stringify(payload)
       }).then(r => r.json());
 
       if (res.success) {
         alert(`${type === "FEEDBACK" ? "Feedback" : "Complaint"} filed successfully!`);
         setText("");
+      } else {
+        alert("Error: " + res.error);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      alert("Error: " + e.message);
     }
   };
 
@@ -857,7 +869,7 @@ export default function StudentDashboard() {
                     return (
                       <div key={app.id} className={`p-5 border rounded-3xl shadow-sm flex flex-col gap-3 relative ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"}`}>
                         <div className="flex justify-between items-center border-b pb-2">
-                          <span className="font-black text-xs uppercase tracking-wide text-school-blue">{app.type} Request</span>
+                          <span className="font-black text-xs uppercase tracking-wide text-school-blue">{app.type === "LIBRARY_CARD" ? "Library Card" : app.type} Request</span>
                           <span className={`px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${
                             app.status === "APPROVED"
                               ? "bg-emerald-50 text-emerald-800 border-emerald-200"

@@ -253,7 +253,7 @@ export default function FacultyDashboard() {
         setAttendanceRecords(res.data);
       } else {
         // Fallback: Map from students list
-        const classStudents = students.filter(s => s.className === cls);
+        const classStudents = students.filter(s => s.className === cls || s.className?.replace(/^Class\s+/i, "") === cls);
         const mapped = classStudents.map(s => ({
           studentId: s.username || s.id,
           studentName: s.name,
@@ -1495,7 +1495,7 @@ export default function FacultyDashboard() {
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => triggerEdit(activeTab, item)} className="p-2 border rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer"><Edit3 size={13} /></button>
-                            <button onClick={() => handleDelete(activeTab === "materials" ? "materials" : activeTab + "s", item.id)} className="p-2 border rounded-lg text-red-500 hover:bg-red-50 cursor-pointer"><Trash2 size={13} /></button>
+                            <button onClick={() => handleDelete(activeTab === "homework" ? "homework" : activeTab, item.id)} className="p-2 border rounded-lg text-red-500 hover:bg-red-50 cursor-pointer"><Trash2 size={13} /></button>
                           </div>
                         </div>
                         {item.instruction && <p className="text-slate-500 text-xs mt-3">{item.instruction}</p>}
